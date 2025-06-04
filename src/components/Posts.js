@@ -117,20 +117,27 @@ const Posts = forwardRef((props, ref) => {
         throw updateError;
       }
 
-      console.log('Fetching reaction counts...');
-      const { data: reactionCounts, error: countError } = await supabase
+      // Count reactions manually instead of using group by
+      console.log('Counting reactions...');
+      const { data: supportData, error: supportError } = await supabase
         .from('user_reactions')
-        .select('reaction_type, count(*)')
+        .select('id')
         .eq('post_id', postId)
-        .group('reaction_type');
+        .eq('reaction_type', 'support');
 
-      if (countError) {
-        console.error('Error getting reaction counts:', countError);
-        throw countError;
+      const { data: opposeData, error: opposeError } = await supabase
+        .from('user_reactions')
+        .select('id')
+        .eq('post_id', postId)
+        .eq('reaction_type', 'oppose');
+
+      if (supportError || opposeError) {
+        console.error('Error counting reactions:', { supportError, opposeError });
+        throw supportError || opposeError;
       }
 
-      const supportCount = reactionCounts?.find(r => r.reaction_type === 'support')?.count || 0;
-      const opposeCount = reactionCounts?.find(r => r.reaction_type === 'oppose')?.count || 0;
+      const supportCount = supportData?.length || 0;
+      const opposeCount = opposeData?.length || 0;
 
       console.log('Updating post counts...', { supportCount, opposeCount });
       const { error: postUpdateError } = await supabase
