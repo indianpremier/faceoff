@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { supabase } from '../config/supabase';
+import { useNavigate } from 'react-router-dom';
 
 export default function Auth() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -40,12 +42,17 @@ export default function Auth() {
       setError(null);
       setMessage(null);
       
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
       
       if (error) throw error;
+      
+      // If login is successful, navigate to profile page
+      if (data.session) {
+        navigate('/profile');
+      }
     } catch (error) {
       setError('Invalid login credentials. Please try again.');
     } finally {
