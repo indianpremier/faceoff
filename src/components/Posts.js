@@ -29,7 +29,6 @@ const Posts = forwardRef((props, ref) => {
 
         if (commentsError) throw commentsError;
         
-        // Group comments by post_id
         const commentsByPost = commentsData.reduce((acc, comment) => {
           acc[comment.post_id] = acc[comment.post_id] || [];
           acc[comment.post_id].push(comment);
@@ -39,7 +38,7 @@ const Posts = forwardRef((props, ref) => {
         setComments(commentsByPost);
       }
     } catch (error) {
-      console.error('Error fetching posts:', error.message);
+      console.error('Error fetching posts:', error);
     } finally {
       setLoading(false);
     }
@@ -55,37 +54,53 @@ const Posts = forwardRef((props, ref) => {
 
   const handleReaction = async (postId, reactionType) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) {
+        console.error('Auth error:', userError);
+        alert('Authentication error. Please sign in again.');
+        return;
+      }
+      
       if (!user) {
         alert('Please sign in to react to posts');
         return;
       }
 
-      // Check if user has already reacted
-      const { data: existingReaction } = await supabase
+      console.log('Checking existing reaction...');
+      const { data: existingReaction, error: existingError } = await supabase
         .from('user_reactions')
         .select('*')
         .eq('post_id', postId)
         .eq('user_id', user.id)
         .single();
 
+      if (existingError && existingError.code !== 'PGRST116') {
+        console.error('Error checking existing reaction:', existingError);
+        throw existingError;
+      }
+
+      let updateError;
       if (existingReaction) {
+        console.log('Existing reaction found:', existingReaction);
         if (existingReaction.reaction_type === reactionType) {
-          // Remove reaction if clicking the same button
-          await supabase
+          console.log('Deleting reaction...');
+          const { error: deleteError } = await supabase
             .from('user_reactions')
             .delete()
             .eq('id', existingReaction.id);
+          updateError = deleteError;
         } else {
-          // Update reaction if changing from support to oppose or vice versa
-          await supabase
+          console.log('Updating reaction...');
+          const { error: updateReactionError } = await supabase
             .from('user_reactions')
             .update({ reaction_type: reactionType })
             .eq('id', existingReaction.id);
+          updateError = updateReactionError;
         }
       } else {
-        // Add new reaction
-        await supabase
+        console.log('Adding new reaction...');
+        const { error: insertError } = await supabase
           .from('user_reactions')
           .insert([
             {
@@ -94,19 +109,31 @@ const Posts = forwardRef((props, ref) => {
               reaction_type: reactionType
             }
           ]);
+        updateError = insertError;
       }
 
-      // Update post counts
-      const { data: reactionCounts } = await supabase
+      if (updateError) {
+        console.error('Error updating reaction:', updateError);
+        throw updateError;
+      }
+
+      console.log('Fetching reaction counts...');
+      const { data: reactionCounts, error: countError } = await supabase
         .from('user_reactions')
         .select('reaction_type, count(*)')
         .eq('post_id', postId)
         .group('reaction_type');
 
+      if (countError) {
+        console.error('Error getting reaction counts:', countError);
+        throw countError;
+      }
+
       const supportCount = reactionCounts?.find(r => r.reaction_type === 'support')?.count || 0;
       const opposeCount = reactionCounts?.find(r => r.reaction_type === 'oppose')?.count || 0;
 
-      await supabase
+      console.log('Updating post counts...', { supportCount, opposeCount });
+      const { error: postUpdateError } = await supabase
         .from('posts')
         .update({
           support_count: supportCount,
@@ -114,17 +141,30 @@ const Posts = forwardRef((props, ref) => {
         })
         .eq('id', postId);
 
-      // Refresh posts
-      fetchPosts();
+      if (postUpdateError) {
+        console.error('Error updating post counts:', postUpdateError);
+        throw postUpdateError;
+      }
+
+      console.log('Refreshing posts...');
+      await fetchPosts();
+      console.log('Reaction handling complete');
     } catch (error) {
-      console.error('Error handling reaction:', error.message);
-      alert('Error handling reaction. Please try again.');
+      console.error('Error handling reaction:', error);
+      alert(`Error handling reaction: ${error.message || 'Please try again.'}`);
     }
   };
 
   const handleComment = async (postId) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) {
+        console.error('Auth error:', userError);
+        alert('Authentication error. Please sign in again.');
+        return;
+      }
+
       if (!user) {
         alert('Please sign in to comment');
         return;
@@ -136,7 +176,7 @@ const Posts = forwardRef((props, ref) => {
         return;
       }
 
-      const { error } = await supabase
+      const { error: insertError } = await supabase
         .from('comments')
         .insert([
           {
@@ -147,19 +187,20 @@ const Posts = forwardRef((props, ref) => {
           }
         ]);
 
-      if (error) throw error;
+      if (insertError) {
+        console.error('Error inserting comment:', insertError);
+        throw insertError;
+      }
 
-      // Clear comment input
       setNewComments(prev => ({
         ...prev,
         [postId]: ''
       }));
 
-      // Refresh posts and comments
-      fetchPosts();
+      await fetchPosts();
     } catch (error) {
-      console.error('Error adding comment:', error.message);
-      alert('Error adding comment. Please try again.');
+      console.error('Error adding comment:', error);
+      alert(`Error adding comment: ${error.message || 'Please try again.'}`);
     }
   };
 
