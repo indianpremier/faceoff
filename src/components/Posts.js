@@ -52,7 +52,8 @@ const Posts = forwardRef((props, ref) => {
     fetchPosts();
   }, []);
 
-  const handleReaction = async (postId, reactionType) => {
+  const handleReaction = async (e, postId, reactionType) => {
+    e.preventDefault(); // Prevent form submission/page refresh
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
@@ -117,24 +118,18 @@ const Posts = forwardRef((props, ref) => {
         throw updateError;
       }
 
-      // Count reactions manually instead of using group by
-      console.log('Counting reactions...');
-      const { data: supportData, error: supportError } = await supabase
+      console.log('Fetching reaction counts...');
+      const { data: supportData } = await supabase
         .from('user_reactions')
         .select('id')
         .eq('post_id', postId)
         .eq('reaction_type', 'support');
 
-      const { data: opposeData, error: opposeError } = await supabase
+      const { data: opposeData } = await supabase
         .from('user_reactions')
         .select('id')
         .eq('post_id', postId)
         .eq('reaction_type', 'oppose');
-
-      if (supportError || opposeError) {
-        console.error('Error counting reactions:', { supportError, opposeError });
-        throw supportError || opposeError;
-      }
 
       const supportCount = supportData?.length || 0;
       const opposeCount = opposeData?.length || 0;
@@ -162,7 +157,8 @@ const Posts = forwardRef((props, ref) => {
     }
   };
 
-  const handleComment = async (postId) => {
+  const handleComment = async (e, postId) => {
+    e.preventDefault(); // Prevent form submission/page refresh
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
@@ -235,14 +231,14 @@ const Posts = forwardRef((props, ref) => {
             {/* Reactions */}
             <div className="flex items-center space-x-4 mb-4">
               <button
-                onClick={() => handleReaction(post.id, 'support')}
+                onClick={(e) => handleReaction(e, post.id, 'support')}
                 className="text-gray-500 hover:text-black text-sm flex items-center space-x-1"
               >
                 <span>👍</span>
                 <span>Support ({post.support_count || 0})</span>
               </button>
               <button
-                onClick={() => handleReaction(post.id, 'oppose')}
+                onClick={(e) => handleReaction(e, post.id, 'oppose')}
                 className="text-gray-500 hover:text-black text-sm flex items-center space-x-1"
               >
                 <span>👎</span>
@@ -261,7 +257,7 @@ const Posts = forwardRef((props, ref) => {
                 ))}
               </div>
               
-              <div className="flex space-x-2">
+              <form onSubmit={(e) => handleComment(e, post.id)} className="flex space-x-2">
                 <input
                   type="text"
                   value={newComments[post.id] || ''}
@@ -273,12 +269,12 @@ const Posts = forwardRef((props, ref) => {
                   className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-md text-sm"
                 />
                 <button
-                  onClick={() => handleComment(post.id)}
+                  type="submit"
                   className="px-4 py-2 bg-black text-white text-sm rounded-md hover:bg-gray-800"
                 >
                   Comment
                 </button>
-              </div>
+              </form>
             </div>
           </div>
         ))
