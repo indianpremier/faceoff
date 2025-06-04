@@ -1,20 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { supabase } from './config/supabase';
-import Auth from './components/Auth';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import Home from './components/Home';
+import Auth from './components/Auth';
+import Profile from './components/Profile';
+import { supabase } from './config/supabase';
 
 function App() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = React.useState(null);
 
-  useEffect(() => {
+  React.useEffect(() => {
     // Check active sessions and sets the user
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
-      setLoading(false);
     });
 
-    // Listen for changes on auth state (sign in, sign out, etc.)
+    // Listen for changes on auth state (login, sign out, etc.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
@@ -22,18 +22,53 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl font-semibold">Loading...</div>
-      </div>
-    );
-  }
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+  };
 
   return (
-    <div>
-      {!user ? <Auth /> : <Home user={user} />}
-    </div>
+    <Router>
+      <div className="min-h-screen bg-gray-100">
+        {/* Navigation */}
+        <nav className="bg-white shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between h-16">
+              <div className="flex items-center">
+                <Link to="/" className="text-xl font-bold text-gray-900">
+                  FaceOff
+                </Link>
+              </div>
+              <div className="flex items-center space-x-4">
+                {user ? (
+                  <>
+                    <Link to="/profile" className="text-gray-700 hover:text-gray-900">
+                      Profile
+                    </Link>
+                    <button
+                      onClick={handleSignOut}
+                      className="text-gray-700 hover:text-gray-900"
+                    >
+                      Sign Out
+                    </button>
+                  </>
+                ) : (
+                  <Link to="/auth" className="text-gray-700 hover:text-gray-900">
+                    Sign In
+                  </Link>
+                )}
+              </div>
+            </div>
+          </div>
+        </nav>
+
+        {/* Routes */}
+        <Routes>
+          <Route path="/" element={<Home user={user} />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/profile" element={<Profile />} />
+        </Routes>
+      </div>
+    </Router>
   );
 }
 
