@@ -5,22 +5,26 @@ import { useNavigate } from 'react-router-dom';
 export default function Profile() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [userPosts, setUserPosts] = useState([]);
   const [userComments, setUserComments] = useState([]);
   const [userReactions, setUserReactions] = useState([]);
   const [activeTab, setActiveTab] = useState('posts');
+  const [usernameInput, setUsernameInput] = useState('');
+  const [usernameError, setUsernameError] = useState(null);
+  const [usernameSuccess, setUsernameSuccess] = useState(null);
 
   const fetchUserData = useCallback(async () => {
     try {
       const { data: { session }, error } = await supabase.auth.getSession();
       if (error) throw error;
-      
+
       if (!session) {
         navigate('/auth');
         return;
       }
-      
+
       setUser(session.user);
     } catch (error) {
       console.error('Error fetching user:', error);
@@ -28,9 +32,27 @@ export default function Profile() {
     }
   }, [navigate]);
 
+  const fetchProfile = useCallback(async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', user.id)
+        .single();
+
+      if (error) throw error;
+
+      setProfile(data);
+      setUsernameInput(data.username);
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    }
+  }, [user]);
+
   const fetchUserContent = useCallback(async () => {
     if (!user) return;
-    
+
     try {
       setLoading(true);
 
@@ -63,7 +85,6 @@ export default function Profile() {
 
       if (reactionsError) throw reactionsError;
       setUserReactions(reactions || []);
-
     } catch (error) {
       console.error('Error fetching user content:', error);
     } finally {
@@ -77,9 +98,49 @@ export default function Profile() {
 
   useEffect(() => {
     if (user) {
+      fetchProfile();
       fetchUserContent();
     }
-  }, [user, fetchUserContent]);
+  }, [user, fetchProfile, fetchUserContent]);
+
+  const handleUsernameUpdate = async () => {
+    setUsernameError(null);
+    setUsernameSuccess(null);
+
+    if (!usernameInput || usernameInput.trim() === '') {
+      setUsernameError('Username cannot be empty.');
+      return;
+    }
+
+    try {
+      // Check if username is unique
+      const { data: existing } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', usernameInput)
+        .neq('id', user.id)
+        .single();
+
+      if (existing) {
+        setUsernameError('Username already taken. Please choose another.');
+        return;
+      }
+
+      // Update username
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ username: usernameInput })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      setUsernameSuccess('Username updated successfully.');
+      fetchProfile();
+    } catch (error) {
+      setUsernameError('Failed to update username. Please try again.');
+      console.error('Error updating username:', error);
+    }
+  };
 
   if (loading) {
     return (
@@ -98,12 +159,33 @@ export default function Profile() {
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center">
             <div className="h-24 w-24 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-2xl mb-4">
-              {user?.email?.[0].toUpperCase()}
+              {profile?.username?.[0].toUpperCase()}
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">{user?.email}</h1>
+            <h1 className="text-2xl font-bold text-gray-900">{profile?.username}</h1>
             <p className="mt-1 text-sm text-gray-500">
               Joined {new Date(user?.created_at).toLocaleDateString()}
             </p>
+          </div>
+          <div className="mt-4 max-w-md w-full">
+            <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+              Username
+            </label>
+            <input
+              id="username"
+              name="username"
+              type="text"
+              value={usernameInput}
+              onChange={(e) => setUsernameInput(e.target.value)}
+              className="mt-1 block w-full rounded-md border border-gray-300 shadow-sm px-3 py-2 focus:outline-none focus:ring-black focus:border-black sm:text-sm"
+            />
+            {usernameError && <p className="text-red-600 mt-1">{usernameError}</p>}
+            {usernameSuccess && <p className="text-green-600 mt-1">{usernameSuccess}</p>}
+            <button
+              onClick={handleUsernameUpdate}
+              className="mt-2 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-black hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black"
+            >
+              Update Username
+            </button>
           </div>
         </div>
       </div>

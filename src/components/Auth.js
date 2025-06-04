@@ -10,19 +10,54 @@ export default function Auth() {
   const [error, setError] = useState(null);
   const [message, setMessage] = useState(null);
 
+  // Helper function to generate unique username
+  const generateUniqueUsername = async (baseUsername) => {
+    let username = baseUsername;
+    let count = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('username', username)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+        throw error;
+      }
+      if (!data) {
+        // Username is unique
+        return username;
+      }
+      count++;
+      username = baseUsername + count;
+    }
+  };
+
   const handleSignUp = async (e) => {
     e.preventDefault();
     try {
       setLoading(true);
       setError(null);
       setMessage(null);
-      
-      const { error } = await supabase.auth.signUp({
+
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
       });
-      
-      if (error) throw error;
+
+      if (signUpError) throw signUpError;
+
+      // Generate username from email local-part
+      const baseUsername = email.split('@')[0];
+      const uniqueUsername = await generateUniqueUsername(baseUsername);
+
+      // Insert profile with unique username
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert([{ id: signUpData.user.id, username: uniqueUsername }]);
+
+      if (profileError) throw profileError;
+
       setMessage('Check your email for the confirmation link!');
     } catch (error) {
       if (error.message.includes('already registered')) {
@@ -41,15 +76,14 @@ export default function Auth() {
       setLoading(true);
       setError(null);
       setMessage(null);
-      
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      
+
       if (error) throw error;
-      
-      // If login is successful, navigate to profile page
+
       if (data.session) {
         navigate('/profile');
       }
@@ -78,13 +112,13 @@ export default function Auth() {
               <p className="text-red-700">{error}</p>
             </div>
           )}
-          
+
           {message && (
             <div className="bg-green-50 border-l-4 border-green-400 p-4 mb-4">
               <p className="text-green-700">{message}</p>
             </div>
           )}
-          
+
           <form className="space-y-6" onSubmit={handleLogin}>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
@@ -130,7 +164,7 @@ export default function Auth() {
               >
                 {loading ? 'Loading...' : 'Sign in'}
               </button>
-              
+
               <button
                 type="button"
                 onClick={handleSignUp}
