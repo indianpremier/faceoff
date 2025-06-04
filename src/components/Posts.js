@@ -13,7 +13,7 @@ const Posts = forwardRef((props, ref) => {
       setLoading(true);
       const { data, error } = await supabase
         .from('posts')
-        .select('*')
+        .select('*, profiles:profiles!posts_user_id_fkey(username)')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -24,7 +24,7 @@ const Posts = forwardRef((props, ref) => {
       if (postIds.length > 0) {
         const { data: commentsData, error: commentsError } = await supabase
           .from('comments')
-          .select('*')
+          .select('*, profiles:profiles!comments_user_id_fkey(username)')
           .in('post_id', postIds)
           .order('created_at', { ascending: false });
 
@@ -185,7 +185,6 @@ const Posts = forwardRef((props, ref) => {
         .insert([{
           post_id: postId,
           user_id: user.id,
-          user_email: user.email,
           content: commentContent
         }])
         .select()
@@ -224,7 +223,7 @@ const Posts = forwardRef((props, ref) => {
         posts.map((post) => (
           <div key={post.id} className="bg-white shadow rounded-lg p-6">
             <div className="flex items-center justify-between mb-4">
-              <div className="text-sm text-gray-500">{post.user_email}</div>
+              <div className="text-sm text-gray-500">{post.profiles?.username || 'Unknown'}</div>
               <div className="text-sm text-gray-400">
                 {new Date(post.created_at).toLocaleDateString()}
               </div>
@@ -267,7 +266,7 @@ const Posts = forwardRef((props, ref) => {
             {!expandedComments[post.id] && comments[post.id]?.[0] && (
               <div className="border-t pt-4">
                 <div className="text-sm">
-                  <span className="font-medium text-gray-700">{comments[post.id][0].user_email}: </span>
+                  <span className="font-medium text-gray-700">{comments[post.id][0].profiles?.username || 'Unknown'}: </span>
                   <span className="text-gray-600">{comments[post.id][0].content}</span>
                 </div>
               </div>
@@ -279,7 +278,7 @@ const Posts = forwardRef((props, ref) => {
                 <div className="mb-4 space-y-2">
                   {(comments[post.id] || []).map((comment) => (
                     <div key={comment.id} className="text-sm">
-                      <span className="font-medium text-gray-700">{comment.user_email}: </span>
+                      <span className="font-medium text-gray-700">{comment.profiles?.username || 'Unknown'}: </span>
                       <span className="text-gray-600">{comment.content}</span>
                     </div>
                   ))}

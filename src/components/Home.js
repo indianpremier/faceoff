@@ -1,11 +1,33 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { supabase } from '../config/supabase';
 import Posts from './Posts';
 
 export default function Home({ user }) {
   const [newPost, setNewPost] = useState('');
   const [loading, setLoading] = useState(false);
+  const [profile, setProfile] = useState(null);
   const postsRef = useRef();
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', user.id)
+          .single();
+
+        if (error) throw error;
+        setProfile(data);
+      } catch (error) {
+        console.error('Error fetching profile:', error);
+      }
+    };
+
+    if (user) {
+      fetchProfile();
+    }
+  }, [user]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -22,8 +44,7 @@ export default function Home({ user }) {
         .insert([
           {
             content: newPost,
-            user_id: user.id,
-            user_email: user.email
+            user_id: user.id
           }
         ]);
 
@@ -49,7 +70,7 @@ export default function Home({ user }) {
               <h1 className="text-2xl font-bold text-gray-900">FaceOff</h1>
             </div>
             <div className="flex items-center">
-              <span className="text-gray-700 mr-4">{user.email}</span>
+              <span className="text-gray-700 mr-4">{profile?.username || 'Loading...'}</span>
               <button
                 onClick={handleSignOut}
                 className="bg-black text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-800"
