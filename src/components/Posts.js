@@ -55,7 +55,7 @@ const Posts = forwardRef((props, ref) => {
 
   const handleReaction = async (postId, reactionType) => {
     try {
-      const user = supabase.auth.user();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         alert('Please sign in to react to posts');
         return;
@@ -118,12 +118,13 @@ const Posts = forwardRef((props, ref) => {
       fetchPosts();
     } catch (error) {
       console.error('Error handling reaction:', error.message);
+      alert('Error handling reaction. Please try again.');
     }
   };
 
   const handleComment = async (postId) => {
     try {
-      const user = supabase.auth.user();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         alert('Please sign in to comment');
         return;
@@ -135,7 +136,7 @@ const Posts = forwardRef((props, ref) => {
         return;
       }
 
-      await supabase
+      const { error } = await supabase
         .from('comments')
         .insert([
           {
@@ -145,6 +146,8 @@ const Posts = forwardRef((props, ref) => {
             content: commentContent
           }
         ]);
+
+      if (error) throw error;
 
       // Clear comment input
       setNewComments(prev => ({
@@ -156,6 +159,7 @@ const Posts = forwardRef((props, ref) => {
       fetchPosts();
     } catch (error) {
       console.error('Error adding comment:', error.message);
+      alert('Error adding comment. Please try again.');
     }
   };
 
