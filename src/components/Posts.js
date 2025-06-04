@@ -52,8 +52,7 @@ const Posts = forwardRef((props, ref) => {
     fetchPosts();
   }, []);
 
-  const handleReaction = async (e, postId, reactionType) => {
-    e.preventDefault(); // Prevent form submission/page refresh
+  const handleReaction = async (postId, reactionType) => {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
@@ -231,14 +230,16 @@ const Posts = forwardRef((props, ref) => {
             {/* Reactions */}
             <div className="flex items-center space-x-4 mb-4">
               <button
-                onClick={(e) => handleReaction(e, post.id, 'support')}
+                type="button"
+                onClick={() => handleReaction(post.id, 'support')}
                 className="text-gray-500 hover:text-black text-sm flex items-center space-x-1"
               >
                 <span>👍</span>
                 <span>Support ({post.support_count || 0})</span>
               </button>
               <button
-                onClick={(e) => handleReaction(e, post.id, 'oppose')}
+                type="button"
+                onClick={() => handleReaction(post.id, 'oppose')}
                 className="text-gray-500 hover:text-black text-sm flex items-center space-x-1"
               >
                 <span>👎</span>
