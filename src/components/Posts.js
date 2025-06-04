@@ -60,6 +60,21 @@ const Posts = forwardRef((props, ref) => {
     }));
   };
 
+  const updatePostCounts = async (postId, supportDelta, opposeDelta) => {
+    setPosts(currentPosts => 
+      currentPosts.map(post => {
+        if (post.id === postId) {
+          return {
+            ...post,
+            support_count: Math.max(0, (post.support_count || 0) + supportDelta),
+            oppose_count: Math.max(0, (post.oppose_count || 0) + opposeDelta)
+          };
+        }
+        return post;
+      })
+    );
+  };
+
   const handleReactionClick = async (postId, reactionType) => {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -84,12 +99,26 @@ const Posts = forwardRef((props, ref) => {
             .from('user_reactions')
             .delete()
             .eq('id', existingReaction.id);
+          
+          // Update local state
+          updatePostCounts(
+            postId,
+            reactionType === 'support' ? -1 : 0,
+            reactionType === 'oppose' ? -1 : 0
+          );
         } else {
           // Update reaction
           await supabase
             .from('user_reactions')
             .update({ reaction_type: reactionType })
             .eq('id', existingReaction.id);
+          
+          // Update local state
+          updatePostCounts(
+            postId,
+            reactionType === 'support' ? 1 : -1,
+            reactionType === 'oppose' ? 1 : -1
+          );
         }
       } else {
         // Add new reaction
@@ -100,9 +129,16 @@ const Posts = forwardRef((props, ref) => {
             user_id: user.id,
             reaction_type: reactionType
           }]);
+        
+        // Update local state
+        updatePostCounts(
+          postId,
+          reactionType === 'support' ? 1 : 0,
+          reactionType === 'oppose' ? 1 : 0
+        );
       }
 
-      // Update post counts
+      // Update database counts in background
       const { data: supportData } = await supabase
         .from('user_reactions')
         .select('id')
@@ -123,7 +159,6 @@ const Posts = forwardRef((props, ref) => {
         })
         .eq('id', postId);
 
-      fetchPosts();
     } catch (error) {
       console.error('Error handling reaction:', error);
       alert('Error updating reaction. Please try again.');
@@ -145,21 +180,30 @@ const Posts = forwardRef((props, ref) => {
         return;
       }
 
-      await supabase
+      const { data: newComment, error: insertError } = await supabase
         .from('comments')
         .insert([{
           post_id: postId,
           user_id: user.id,
           user_email: user.email,
           content: commentContent
-        }]);
+        }])
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      // Update local state
+      setComments(prev => ({
+        ...prev,
+        [postId]: [newComment, ...(prev[postId] || [])]
+      }));
 
       setNewComments(prev => ({
         ...prev,
         [postId]: ''
       }));
 
-      fetchPosts();
     } catch (error) {
       console.error('Error adding comment:', error);
       alert('Error adding comment. Please try again.');
