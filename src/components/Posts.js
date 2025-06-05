@@ -389,5 +389,3 @@ const Posts = forwardRef((props, ref) => {
 });
 
 export default Posts;
-
-export default Posts
