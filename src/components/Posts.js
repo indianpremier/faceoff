@@ -7,14 +7,44 @@ const Posts = forwardRef((props, ref) => {
   const [comments, setComments] = useState({});
   const [newComments, setNewComments] = useState({});
   const [expandedComments, setExpandedComments] = useState({});
+  const [selectedTopic, setSelectedTopic] = useState(null);
+  const [topics, setTopics] = useState([]);
+
+  useEffect(() => {
+    const fetchTopics = async () => {
+      const { data, error } = await supabase
+        .from('topics')
+        .select('*')
+        .order('name');
+      
+      if (error) {
+        console.error('Error fetching topics:', error);
+      } else {
+        setTopics(data);
+      }
+    };
+
+    fetchTopics();
+  }, []);
 
   const fetchPosts = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      let query = supabase
         .from('posts')
-        .select('*, profiles:profiles!posts_user_id_fkey(username)')
+        .select(`
+          *,
+          profiles:profiles!posts_user_id_fkey(username),
+          post_topics!inner(topic_id),
+          topics:post_topics!inner(topics(*))
+        `)
         .order('created_at', { ascending: false });
+
+      if (selectedTopic) {
+        query = query.eq('post_topics.topic_id', selectedTopic);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setPosts(data || []);
@@ -51,7 +81,7 @@ const Posts = forwardRef((props, ref) => {
 
   useEffect(() => {
     fetchPosts();
-  }, []);
+  }, [selectedTopic]);
 
   const toggleComments = (postId) => {
     setExpandedComments(prev => ({
@@ -215,6 +245,33 @@ const Posts = forwardRef((props, ref) => {
 
   return (
     <div className="space-y-6">
+      {/* Topic filter */}
+      <div className="flex flex-wrap gap-2 mb-6">
+        <button
+          onClick={() => setSelectedTopic(null)}
+          className={`px-3 py-1 rounded-full text-sm ${
+            !selectedTopic
+              ? 'bg-black text-white'
+              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+          }`}
+        >
+          All Topics
+        </button>
+        {topics.map(topic => (
+          <button
+            key={topic.id}
+            onClick={() => setSelectedTopic(topic.id)}
+            className={`px-3 py-1 rounded-full text-sm ${
+              selectedTopic === topic.id
+                ? 'bg-black text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            {topic.name}
+          </button>
+        ))}
+      </div>
+
       {posts.length === 0 ? (
         <div className="text-center py-4 text-gray-500">
           No debates yet. Start one!
@@ -228,7 +285,20 @@ const Posts = forwardRef((props, ref) => {
                 {new Date(post.created_at).toLocaleDateString()}
               </div>
             </div>
+            <h2 className="text-xl font-semibold mb-2">{post.title}</h2>
             <p className="text-gray-800 whitespace-pre-wrap mb-4">{post.content}</p>
+            
+            {/* Topics */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              {post.topics.map(({ topics: topic }) => (
+                <span
+                  key={topic.id}
+                  className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full"
+                >
+                  {topic.name}
+                </span>
+              ))}
+            </div>
             
             <div className="flex items-center justify-between mb-4">
               {/* Reactions */}
@@ -319,3 +389,5 @@ const Posts = forwardRef((props, ref) => {
 });
 
 export default Posts;
+
+export default Posts
